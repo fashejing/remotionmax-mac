@@ -259,6 +259,113 @@ fi
 
 FULL_PATH="$PROJECT_PATH/$PROJECT_NAME"
 
+# Check for batch mode FIRST - before any project creation
+if [ "$BATCH_MODE" = true ] && [ -f "$BATCH_FILE" ]; then
+  # Batch file exists - check if this project already has an entry
+  BATCH_DATA=$(cat "$BATCH_FILE")
+  BATCH_PROJECT_PATH=$(echo "$BATCH_DATA" | jq -r '.projectPath')
+
+  if [ "$FULL_PATH" = "$BATCH_PROJECT_PATH" ]; then
+    # Same project - just add animation
+    echo ""
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${GREEN}📦 Adding animation to existing batch project...${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo "   Project: $PROJECT_NAME"
+    echo "   Theme: $THEME"
+    echo ""
+
+    ANIMATION_COUNT=$(echo "$BATCH_DATA" | jq -r '.animations | length')
+    NEW_ANIMATION_NAME="Animation$(printf '%02d' $((ANIMATION_COUNT + 1)))"
+
+    # Create animation file
+    cat > "$FULL_PATH/src/${NEW_ANIMATION_NAME}.tsx" << 'ANIMEOF'
+import React from 'react';
+import { useCurrentFrame, interpolate, spring, AbsoluteFill } from 'remotion';
+
+const ThemeAnimation: React.FC = () => {
+  const frame = useCurrentFrame();
+  const fps = 30;
+
+  const scale = spring({ fps, frame, config: { damping: 12, stiffness: 100 } });
+  const opacity = interpolate(frame, [0, 30, 120, 150], [0, 1, 1, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: '#0a0a1a', justifyContent: 'center', alignItems: 'center' }}>
+      <div style={{ transform: `scale(${scale})`, opacity }}>
+        <div style={{
+          fontSize: 100,
+          fontFamily: 'Arial Black, sans-serif',
+          fontWeight: 'bold',
+          color: '#fff',
+          textShadow: '0 0 30px rgba(255, 0, 255, 0.8), 0 0 60px rgba(0, 255, 255, 0.6)',
+        }}>
+          EMOWOWO
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+export default ThemeAnimation;
+ANIMEOF
+
+    # Update index.tsx to register new animation
+    ANIMATIONS_JSON=$(echo "$BATCH_DATA" | jq -r '.animations | map({id: ., component: ., duration: 150})')
+    NEW_ANIM_ID=$(basename "$NEW_ANIMATION_NAME" .tsx)
+
+    # Create updated index.tsx
+    cat > "$FULL_PATH/src/index.tsx" << INDEXEOF
+import { Composition, registerRoot } from 'remotion';
+import React from 'react';
+$(echo "$BATCH_DATA" | jq -r '.animations[]' | while read anim; do
+  echo "import $anim from './$anim';"
+done)
+
+const compositions = [
+$(echo "$BATCH_DATA" | jq -r '.animations[]' | while read anim; do
+  echo "  { id: '$anim', component: $anim, duration: 150 },"
+done)
+  { id: '$NEW_ANIMATION_NAME', component: require('./$NEW_ANIMATION_NAME').default, duration: 150 },
+];
+
+const Root: React.FC = () => {
+  return (
+    <>
+      {compositions.map((comp) => (
+        <Composition
+          key={comp.id}
+          id={comp.id}
+          component={comp.component}
+          durationInFrames={comp.duration}
+          fps={30}
+          width={1920}
+          height={1080}
+        />
+      ))}
+    </>
+  );
+};
+
+registerRoot(Root);
+INDEXEOF
+
+    # Update batch file
+    echo "$BATCH_DATA" | jq ".animations += [\"$NEW_ANIMATION_NAME\"]" > "$BATCH_FILE"
+
+    echo -e "${GREEN}✅ Animation added to batch project${NC}"
+    echo ""
+    echo -e "${BLUE}   Animation: $NEW_ANIMATION_NAME"
+    echo "   Project: $(basename "$FULL_PATH")"
+    echo "   Total animations: $((ANIMATION_COUNT + 1))${NC}"
+    echo ""
+    exit 0
+  fi
+fi
+
 echo ""
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}📦 Creating your animation project...${NC}"
@@ -319,7 +426,96 @@ cat > "$FULL_PATH/tsconfig.json" << 'TSEOF'
   },
   "include": ["src/**/*"]
 }
-TSEOF
+ TSEOF
+
+# Batch mode first run: create Animation01 and save batch file
+if [ "$BATCH_MODE" = true ] && [ ! -f "$BATCH_FILE" ]; then
+  # Find available port
+  TEST_PORT=$PORT
+  while lsof -i :$TEST_PORT >/dev/null 2>&1; do
+    TEST_PORT=$((TEST_PORT + 1))
+  done
+
+  echo -e "${GREEN}🎨 Creating batch animation for: $THEME${NC}"
+
+  # Create Animation01.tsx
+  cat > "$FULL_PATH/src/Animation01.tsx" << 'ANIMEOF'
+import React from 'react';
+import { useCurrentFrame, interpolate, spring, AbsoluteFill } from 'remotion';
+
+const ThemeAnimation: React.FC = () => {
+  const frame = useCurrentFrame();
+  const fps = 30;
+
+  const scale = spring({ fps, frame, config: { damping: 12, stiffness: 100 } });
+  const opacity = interpolate(frame, [0, 30, 120, 150], [0, 1, 1, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const floatY = interpolate(frame, [0, 75, 150], [0, -20, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: '#0a0a1a', justifyContent: 'center', alignItems: 'center' }}>
+      <div style={{ transform: `scale(${scale}) translateY(${floatY})`, opacity }}>
+        <div style={{
+          fontSize: 100,
+          fontFamily: 'Arial Black, sans-serif',
+          fontWeight: 'bold',
+          color: '#fff',
+          textShadow: '0 0 30px rgba(255, 0, 255, 0.8), 0 0 60px rgba(0, 255, 255, 0.6)',
+        }}>
+          EMOWOWO
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+export default ThemeAnimation;
+ANIMEOF
+
+  # Create index.tsx with Animation01 registration
+  cat > "$FULL_PATH/src/index.tsx" << 'INDEXEOF'
+import { Composition, registerRoot } from 'remotion';
+import React from 'react';
+import Animation01 from './Animation01';
+
+const Root: React.FC = () => {
+  return (
+    <Composition
+      id="Animation01"
+      component={Animation01}
+      durationInFrames={150}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+  );
+};
+
+registerRoot(Root);
+INDEXEOF
+
+  touch "$FULL_PATH/public/.gitkeep"
+
+  # Save batch file
+  echo "{\"projectPath\": \"$FULL_PATH\", \"port\": $TEST_PORT, \"animations\": [\"Animation01\"]}" > "$BATCH_FILE"
+
+  echo -e "${GREEN}✅ Batch project created${NC}"
+  echo ""
+  echo -e "${BLUE}   Project: $PROJECT_NAME"
+  echo "   Path: $FULL_PATH"
+  echo "   Port: $TEST_PORT"
+  echo "   Animations: 1${NC}"
+  echo ""
+  echo -e "${YELLOW}   Run --batch again with same --name to add more animations${NC}"
+  echo "   Run --launch when done to open and preview${NC}"
+  echo ""
+  exit 0
+fi
 
 # Generate animation code based on theme
 echo -e "${GREEN}🎨 Generating animation code for: $THEME${NC}"
@@ -395,200 +591,6 @@ touch "$FULL_PATH/public/.gitkeep"
 echo -e "${GREEN}📦 Installing dependencies...${NC}"
 cd "$FULL_PATH"
 npm install 2>/dev/null || npm install
-
-# Add to batch file if in batch mode
-if [ "$BATCH_MODE" = true ]; then
-  # Find available port
-  TEST_PORT=$PORT
-  while lsof -i :$TEST_PORT >/dev/null 2>&1; do
-    TEST_PORT=$((TEST_PORT + 1))
-  done
-
-  # Batch mode: all animations go into ONE project
-  if [ -f "$BATCH_FILE" ]; then
-    # Project already exists, just add animation to it
-    BATCH_DATA=$(cat "$BATCH_FILE")
-    PROJECT_PATH=$(echo "$BATCH_DATA" | jq -r '.projectPath')
-    PORT=$(echo "$BATCH_DATA" | jq -r '.port')
-    ANIMATION_COUNT=$(echo "$BATCH_DATA" | jq -r '.animations | length')
-    NEW_ANIMATION_NAME="Animation$(printf '%02d' $((ANIMATION_COUNT + 1)))"
-
-    # Create animation file
-    cat > "$PROJECT_PATH/src/${NEW_ANIMATION_NAME}.tsx" << 'ANIMEOF'
-import React from 'react';
-import { useCurrentFrame, interpolate, spring, AbsoluteFill } from 'remotion';
-
-const ThemeAnimation: React.FC = () => {
-  const frame = useCurrentFrame();
-  const fps = 30;
-
-  const scale = spring({ fps, frame, config: { damping: 12, stiffness: 100 } });
-  const opacity = interpolate(frame, [0, 30, 120, 150], [0, 1, 1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  return (
-    <AbsoluteFill style={{ backgroundColor: '#0a0a1a', justifyContent: 'center', alignItems: 'center' }}>
-      <div style={{ transform: `scale(${scale})`, opacity }}>
-        <div style={{
-          fontSize: 100,
-          fontFamily: 'Arial Black, sans-serif',
-          fontWeight: 'bold',
-          color: '#fff',
-          textShadow: '0 0 30px rgba(255, 0, 255, 0.8), 0 0 60px rgba(0, 255, 255, 0.6)',
-        }}>
-          EMOWOWO
-        </div>
-      </div>
-    </AbsoluteFill>
-  );
-};
-
-export default ThemeAnimation;
-ANIMEOF
-
-    # Update batch file with new animation
-    echo "$BATCH_DATA" | jq ".animations += [\"$NEW_ANIMATION_NAME\"]" > "$BATCH_FILE"
-
-    echo -e "${GREEN}✅ Animation added to batch project${NC}"
-    echo ""
-    echo -e "${BLUE}   Animation: $NEW_ANIMATION_NAME"
-    echo "   Project: $(basename "$PROJECT_PATH")"
-    echo "   Total animations: $((ANIMATION_COUNT + 1))${NC}"
-    echo ""
-    exit 0
-  fi
-
-  # First batch call: create project with first animation
-  mkdir -p "$FULL_PATH"/{src,public}
-
-  # Create package.json
-  cat > "$FULL_PATH/package.json" << 'PKGEOF'
-{
-  "name": "remotion-batch",
-  "version": "1.0.0",
-  "description": "Created with RemotionMAX-Mac Batch",
-  "scripts": {
-    "start": "remotion preview",
-    "build": "remotion render out.mp4",
-    "preview": "remotion preview"
-  },
-  "dependencies": {
-    "@remotion/cli": "^4.0.0",
-    "@remotion/bundler": "^4.0.0",
-    "remotion": "^4.0.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
-  }
-}
-PKGEOF
-
-  # Create tsconfig.json
-  cat > "$FULL_PATH/tsconfig.json" << 'TSEOF'
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "ESNext",
-    "lib": ["ES2020", "DOM"],
-    "jsx": "react-jsx",
-    "strict": true,
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "skipLibCheck": true
-  },
-  "include": ["src/**/*"]
-}
-TSEOF
-
-  # Create first animation file
-  cat > "$FULL_PATH/src/Animation01.tsx" << 'ANIMEOF'
-import React from 'react';
-import { useCurrentFrame, interpolate, spring, AbsoluteFill } from 'remotion';
-
-const ThemeAnimation: React.FC = () => {
-  const frame = useCurrentFrame();
-  const fps = 30;
-
-  const scale = spring({ fps, frame, config: { damping: 12, stiffness: 100 } });
-  const opacity = interpolate(frame, [0, 30, 120, 150], [0, 1, 1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  return (
-    <AbsoluteFill style={{ backgroundColor: '#0a0a1a', justifyContent: 'center', alignItems: 'center' }}>
-      <div style={{ transform: `scale(${scale})`, opacity }}>
-        <div style={{
-          fontSize: 100,
-          fontFamily: 'Arial Black, sans-serif',
-          fontWeight: 'bold',
-          color: '#fff',
-          textShadow: '0 0 30px rgba(255, 0, 255, 0.8), 0 0 60px rgba(0, 255, 255, 0.6)',
-        }}>
-          EMOWOWO
-        </div>
-      </div>
-    </AbsoluteFill>
-  );
-};
-
-export default ThemeAnimation;
-ANIMEOF
-
-  # Create index.tsx that registers all animations
-  cat > "$FULL_PATH/src/index.tsx" << 'INDEXEOF'
-import { Composition, registerRoot } from 'remotion';
-import React from 'react';
-import Animation01 from './Animation01';
-
-const compositions = [
-  { id: 'Animation01', component: Animation01, duration: 150 },
-];
-
-const Root: React.FC = () => {
-  return (
-    <>
-      {compositions.map((comp) => (
-        <Composition
-          key={comp.id}
-          id={comp.id}
-          component={comp.component}
-          durationInFrames={comp.duration}
-          fps={30}
-          width={1920}
-          height={1080}
-        />
-      ))}
-    </>
-  );
-};
-
-registerRoot(Root);
-INDEXEOF
-
-  touch "$FULL_PATH/public/.gitkeep"
-
-  # Install dependencies
-  echo -e "${GREEN}📦 Installing dependencies...${NC}"
-  cd "$FULL_PATH"
-  npm install 2>/dev/null || npm install
-
-  # Save batch file with project info
-  echo "{\"projectPath\": \"$FULL_PATH\", \"port\": $TEST_PORT, \"animations\": [\"Animation01\"]}" > "$BATCH_FILE"
-
-  echo -e "${GREEN}✅ Batch project created (run --batch again to add more animations)${NC}"
-  echo ""
-  echo -e "${BLUE}   Project: $PROJECT_NAME"
-  echo "   Path: $FULL_PATH"
-  echo "   Port: $TEST_PORT"
-  echo "   Animations: 1${NC}"
-  echo ""
-  exit 0
-fi
 
 # Open in editor (only if not deferring)
 if [ "$DEFER_OPEN" = false ]; then
