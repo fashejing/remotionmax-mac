@@ -1,22 +1,36 @@
 ---
 name: remotionmax-mac
 description: >
-  Create Remotion animations for Mac - one click to create, edit, and preview.
+  Create Remotion animations for Mac - AI-powered creative animation generation.
   Supports batch mode for creating multiple animations in ONE project, switchable in Remotion Studio.
   Default editor is VS Code.
   Triggers on: create animation, remotion preview, open video editor, start remotion, animation studio, batch animations.
 ---
 
-# RemotionMAX-Mac - Animation Studio
+# RemotionMAX-Mac - AI-Powered Animation Studio
 
-One-click Remotion animation studio, Mac optimized. Create single or multiple animations efficiently.
+One-click Remotion animation studio with AI-powered creative animation generation. Mac optimized.
 
 ## What is RemotionMAX-Mac?
 
 RemotionMAX-Mac combines three steps into one:
-1. **Create** - Generate animation project with dependencies
+1. **AI Create** - Generate unique animation code based on your theme using AI
 2. **Open** - Launch in VS Code
 3. **Preview** - Start live preview server
+
+## AI-Powered Animation
+
+Animations are generated based on your theme description using AI:
+- Analyzes your theme keywords (pixel, neon, flip, etc.)
+- Generates unique, creative visual effects
+- Professional-quality animation code
+- No template limitations
+
+Set API keys for AI generation:
+```bash
+export OPENAI_API_KEY="your-key"  # For OpenAI GPT-4
+export ANTHROPIC_API_KEY="your-key"  # For Claude
+```
 
 ## Usage
 
@@ -36,8 +50,8 @@ Create multiple animations that go into ONE project. Switch between them in Remo
 bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --name "my-batch" --theme "neon" --auto --batch
 
 # Step 2: Add more animations to the same project
-bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --name "my-batch" --theme "pixel" --auto --batch
-bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --name "my-batch" --theme "cyberpunk" --auto --batch
+bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --name "my-batch" --theme "pixel art" --auto --batch
+bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --name "my-batch" --theme "flip board" --auto --batch
 
 # Step 3: Launch when done
 bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --launch
