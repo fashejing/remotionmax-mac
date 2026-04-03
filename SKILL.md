@@ -2,8 +2,8 @@
 name: remotionmax-mac
 description: >
   Create Remotion animations for Mac - one click to create, edit, and preview.
-  Supports batch mode for creating multiple animations at once, opening all in ONE Cursor workspace.
-  Use when user wants to create animated videos with Remotion, especially multiple animations at once.
+  Supports batch mode for creating multiple animations in ONE project, switchable in Remotion Studio.
+  Default editor is VS Code.
   Triggers on: create animation, remotion preview, open video editor, start remotion, animation studio, batch animations.
 ---
 
@@ -15,8 +15,8 @@ One-click Remotion animation studio, Mac optimized. Create single or multiple an
 
 RemotionMAX-Mac combines three steps into one:
 1. **Create** - Generate animation project with dependencies
-2. **Open** - Launch in Cursor (single workspace for batch)
-3. **Preview** - Start live preview server (single browser tab)
+2. **Open** - Launch in VS Code
+3. **Preview** - Start live preview server
 
 ## Usage
 
@@ -25,41 +25,42 @@ RemotionMAX-Mac combines three steps into one:
 bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh \
   --name "my-animation" \
   --theme "neon glow logo" \
-  --editor "cursor" \
   --auto
 ```
 
-### Batch Mode (Multiple Animations)
-Create multiple animations, then launch all at once in ONE Cursor window:
+### Batch Mode (Multiple Animations in ONE Project)
+Create multiple animations that go into ONE project. Switch between them in Remotion Studio:
 
 ```bash
-# Step 1: Create projects (batch mode - won't open cursor/browser)
-bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --name "project-1" --theme "neon" --auto --batch
-bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --name "project-2" --theme "pixel" --auto --batch
-bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --name "project-3" --theme "cyberpunk" --auto --batch
+# Step 1: Create project with first animation
+bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --name "my-batch" --theme "neon" --auto --batch
 
-# Step 2: Launch all projects at once
+# Step 2: Add more animations to the same project
+bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --name "my-batch" --theme "pixel" --auto --batch
+bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --name "my-batch" --theme "cyberpunk" --auto --batch
+
+# Step 3: Launch when done
 bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --launch
 ```
 
 ### Batch Mode Benefits
-- **ONE Cursor window** with all project folders
-- **ONE preview terminal** with all servers running
-- **ONE browser tab** showing first preview
-- All animations ready simultaneously
+- **ONE project** with all animations
+- **ONE VS Code window**
+- **ONE preview server** - switch animations in Remotion Studio
+- All animations in one place, easy to manage
 
 ## Command Line Options
 
 | Option | Description |
 |:-------|:------------|
-| `--name` | Project name |
+| `--name` | Project name (same name adds to existing batch project) |
 | `--theme` | Animation theme/description |
-| `--editor` | `cursor` or `vscode` |
+| `--editor` | `vscode` (default) or `cursor` |
 | `--template` | `blank`, `hello-world`, `three-fiber`, `still-images` |
 | `--path` | Custom project path |
 | `--port` | Preview port (default: 3456) |
-| `--batch` | Add to batch queue, don't open yet |
-| `--launch` | Launch all batched projects |
+| `--batch` | Add animation to batch project (same project name = same project) |
+| `--launch` | Launch batch project |
 | `--force` | Kill all existing preview servers before starting |
 | `--auto` | Skip all prompts, use defaults |
 
@@ -82,7 +83,7 @@ bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --launch
        ↓
 2. Project created & dependencies installed
        ↓
-3. Cursor opens with project
+3. VS Code opens with project
        ↓
 4. Preview server starts
        ↓
@@ -91,18 +92,28 @@ bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --launch
 
 ### Batch Mode (Multiple Animations)
 ```
-1. Run script with --batch (multiple times)
+1. First --batch creates project + Animation01
        ↓
-2. All projects created (no windows open)
+2. Second --batch adds Animation02 to same project
        ↓
-3. Run with --launch
+3. Third --batch adds Animation03, etc.
        ↓
-4. ONE Cursor opens with ALL folders
+4. Run --launch
        ↓
-5. All preview servers start
+5. VS Code opens with ONE project
        ↓
-6. Browser opens with first preview
+6. ONE preview server starts
+       ↓
+7. Browser opens - use Remotion Studio to switch animations
 ```
+
+## Switching Animations in Remotion Studio
+
+After launching:
+1. Open http://localhost:3456 in browser
+2. Click the Remotion Studio logo (top-left)
+3. Select different animations from the dropdown
+4. All animations are in the same project!
 
 ## Core Remotion APIs
 
@@ -128,23 +139,23 @@ const scale = spring({ fps, frame, config: { damping: 10 } });
 ### Preview
 - http://localhost:3456 (or specified port)
 - Real-time editing - changes update instantly
-- Use Remotion Studio to switch between compositions
+- Click Remotion Studio logo to switch between animations
 
 ### Render
 ```bash
-# MP4
-npx remotion render ThemeAnimation out.mp4
+# Render specific animation
+npx remotion render Animation01 out.mp4
 
 # GIF
-npx remotion render ThemeAnimation out.gif --codec=gif
+npx remotion render Animation01 out.gif --codec=gif
 ```
 
 ## Tips
 
-- **Batch creation**: Use `--batch` for creating many animations efficiently
-- **Workspace**: All batched projects open in single Cursor window
-- **Multiple previews**: Preview servers run on different ports (3456, 3457, etc.)
-- **Edit anytime**: Run `--launch` again if you need to reopen all projects
+- **Batch by name**: Use same `--name` to add animations to the same project
+- **Switch in Studio**: All animations accessible via Remotion Studio dropdown
+- **One project**: All batch animations live in `src/Animation01.tsx`, `Animation02.tsx`, etc.
+- **Edit anytime**: Run `--launch` again to reopen
 
 ## Resources
 

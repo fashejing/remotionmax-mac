@@ -98,110 +98,93 @@ echo "                                       MAX-MAC"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${NC}"
 
-# Launch mode - open all batched projects
+# Launch mode - open batch project with all animations
 if [ "$LAUNCH_MODE" = true ]; then
-  echo -e "${YELLOW}🚀 Launching all batched projects...${NC}"
+  echo -e "${YELLOW}🚀 Launching batch project...${NC}"
   echo ""
-  
-  if [ ! -f "$BATCH_FILE" ]; then
-    echo -e "${RED}❌ No batch file found. Create projects first with --batch flag.${NC}"
-    exit 1
-  fi
-  
-  # Read batch file
-  BATCH_DATA=$(cat "$BATCH_FILE")
-  PROJECT_COUNT=$(echo "$BATCH_DATA" | jq length 2>/dev/null || echo "0")
-  
-  if [ "$PROJECT_COUNT" = "0" ] || [ "$PROJECT_COUNT" = "null" ]; then
-    echo -e "${RED}❌ No projects in batch.${NC}"
-    exit 1
-  fi
-  
-  echo -e "${GREEN}📦 Found $PROJECT_COUNT projects in batch${NC}"
-  echo ""
-  
-  # Collect all project paths for Cursor
-  CURSOR_PATHS=""
-  PREVIEW_PORTS=""
-  PROJECT_LOCATIONS=""
-  
-  for i in $(seq 0 $((PROJECT_COUNT - 1))); do
-    PROJECT_PATH=$(echo "$BATCH_DATA" | jq -r ".[$i].path")
-    PROJECT_NAME=$(echo "$BATCH_DATA" | jq -r ".[$i].name")
-    PORT=$(echo "$BATCH_DATA" | jq -r ".[$i].port")
-    
-    CURSOR_PATHS="$CURSOR_PATHS \"$PROJECT_PATH\""
-    PREVIEW_PORTS="$PREVIEW_PORTS $PORT"
-    PROJECT_LOCATIONS="$PROJECT_LOCATIONS\n   ${PURPLE}$PROJECT_NAME${NC}: http://localhost:$PORT"
-  done
-  
-  # Open Cursor with all projects in one workspace
-  echo -e "${GREEN}💻 Opening Cursor with all projects...${NC}"
-  eval "open -a Cursor $CURSOR_PATHS" &
-  CURSOR_PID=$!
-  
-  # Start preview servers for all projects
-  echo -e "${GREEN}🚀 Starting preview servers...${NC}"
-  PREVIEW_PIDS=""
 
-  # Kill any existing remotion preview processes first
+  if [ ! -f "$BATCH_FILE" ]; then
+    echo -e "${RED}❌ No batch file found. Create project first with --batch flag.${NC}"
+    exit 1
+  fi
+
+  # Read batch file (new format: {projectPath, port, animations[]})
+  BATCH_DATA=$(cat "$BATCH_FILE")
+  PROJECT_PATH=$(echo "$BATCH_DATA" | jq -r '.projectPath')
+  PORT=$(echo "$BATCH_DATA" | jq -r '.port')
+  ANIMATIONS=$(echo "$BATCH_DATA" | jq -r '.animations | join(", ")')
+  ANIMATION_COUNT=$(echo "$BATCH_DATA" | jq -r '.animations | length')
+
+  if [ -z "$PROJECT_PATH" ] || [ "$PROJECT_PATH" = "null" ]; then
+    echo -e "${RED}❌ Invalid batch file.${NC}"
+    exit 1
+  fi
+
+  echo -e "${GREEN}📦 Found batch project with $ANIMATION_COUNT animations${NC}"
+  echo ""
+  echo -e "${BLUE}   Project: $(basename "$PROJECT_PATH")"
+  echo "   Animations: $ANIMATIONS"
+  echo "   Port: $PORT${NC}"
+  echo ""
+
+  # Kill any existing remotion preview processes
   echo -e "${YELLOW}🔪 Cleaning up existing preview servers...${NC}"
   pkill -f "remotion preview" 2>/dev/null || true
   sleep 2
 
-  for i in $(seq 0 $((PROJECT_COUNT - 1))); do
-    PROJECT_PATH=$(echo "$BATCH_DATA" | jq -r ".[$i].path")
-    PORT=$(echo "$BATCH_DATA" | jq -r ".[$i].port")
-
-    # Force kill any process on this port
-    echo -e "${YELLOW}   Port $PORT: killing existing process...${NC}"
-    kill_port $PORT
+  # Kill port function
+  kill_port() {
+    local p=$1
+    lsof -ti :$p | xargs kill -9 2>/dev/null || true
     sleep 1
+  }
 
-    cd "$PROJECT_PATH"
-    nohup npx remotion preview --port $PORT > /tmp/remotionmax-$PORT.log 2>&1 &
-    PREVIEW_PIDS="$PREVIEW_PIDS $!"
-    echo -e "${BLUE}   Started preview on port $PORT${NC}"
-  done
-  
-  # Wait for first server to be ready
-  FIRST_PORT=$(echo "$BATCH_DATA" | jq -r ".[0].port")
-  echo -e "${BLUE}⏳ Waiting for preview servers to compile...${NC}"
-  
+  # Kill any process on the port
+  echo -e "${YELLOW}   Killing process on port $PORT...${NC}"
+  kill_port $PORT
+  sleep 1
+
+  # Open VS Code with project
+  echo -e "${GREEN}💻 Opening VS Code with project...${NC}"
+  code "$PROJECT_PATH" &
+  sleep 2
+
+  # Start preview server
+  echo -e "${GREEN}🚀 Starting preview server...${NC}"
+  cd "$PROJECT_PATH"
+  nohup npx remotion preview --port $PORT > /tmp/remotionmax-$PORT.log 2>&1 &
+  sleep 8
+
+  # Wait for server to be ready
+  echo -e "${BLUE}⏳ Waiting for preview to compile...${NC}"
   for i in {1..30}; do
-    if curl -s -o /dev/null -w "%{http_code}" "http://localhost:$FIRST_PORT" 2>/dev/null | grep -q "200"; then
-      echo -e "${GREEN}✅ Preview servers ready!${NC}"
+    if curl -s -o /dev/null -w "%{http_code}" "http://localhost:$PORT" 2>/dev/null | grep -q "200"; then
+      echo -e "${GREEN}✅ Preview ready!${NC}"
       break
     fi
     sleep 2
   done
-  
-  # Open ONE browser with first project's preview
+
+  # Open browser
   echo -e "${GREEN}🌐 Opening preview in browser...${NC}"
-  open "http://localhost:$FIRST_PORT"
-  
+  open "http://localhost:$PORT"
+
   echo ""
   echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo -e "${GREEN}✅ All $PROJECT_COUNT Animations Ready!${NC}"
+  echo -e "${GREEN}✅ Batch Project Ready!${NC}"
   echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo ""
-  echo -e "${PURPLE}📁 Project Locations:${NC} $PROJECT_LOCATIONS"
+  echo -e "   ${PURPLE}📁 Project:${NC} $(basename "$PROJECT_PATH")"
+  echo -e "   ${PURPLE}🎬 Animations:${NC} $ANIMATION_COUNT ($ANIMATIONS)"
+  echo -e "   ${PURPLE}🔗 Preview:${NC} http://localhost:$PORT"
   echo ""
-  echo -e "${YELLOW}💡 To add more projects, run with --batch, then use --launch when done.${NC}"
+  echo -e "${YELLOW}   Switch between animations in Remotion Studio!${NC}"
   echo ""
-  echo -e "${BLUE}   Preview ports:$PREVIEW_PORTS"
-  echo ""
-  
+
   # Clean up batch file
   rm -f "$BATCH_FILE"
-  
-  exit 0
-fi
 
-# Normal single project creation
-if [ "$BATCH_MODE" = true ]; then
-  echo -e "${YELLOW}📦 Batch Mode: Project will be created but not opened yet${NC}"
-  echo ""
+  exit 0
 fi
 
 echo -e "${YELLOW}One-click Animation Studio (Mac Optimized)${NC}"
@@ -246,7 +229,7 @@ if [ "$AUTO_MODE" = false ]; then
     read -r EDITOR_CHOICE
     case $EDITOR_CHOICE in
       2) EDITOR="vscode" ;;
-      *) EDITOR="cursor" ;;
+      *) EDITOR="vscode" ;;
     esac
   fi
 
@@ -271,7 +254,7 @@ fi
 # Set defaults if still empty
 [ -z "$PROJECT_NAME" ] && PROJECT_NAME="my-animation"
 [ -z "$THEME" ] && THEME="neon glow logo"
-[ -z "$EDITOR" ] && EDITOR="cursor"
+[ -z "$EDITOR" ] && EDITOR="vscode"
 [ -z "$PROJECT_PATH" ] && PROJECT_PATH="/Users/fsj/Documents/emowowo remotion"
 
 FULL_PATH="$PROJECT_PATH/$PROJECT_NAME"
@@ -415,43 +398,195 @@ npm install 2>/dev/null || npm install
 
 # Add to batch file if in batch mode
 if [ "$BATCH_MODE" = true ]; then
-  # Find available port (checking both system ports and existing batch entries)
+  # Find available port
   TEST_PORT=$PORT
-  while true; do
-    # Check if port is in use by system
-    if lsof -i :$TEST_PORT >/dev/null 2>&1; then
-      TEST_PORT=$((TEST_PORT + 1))
-      continue
-    fi
-    # Check if port is already assigned in batch file
-    if [ -f "$BATCH_FILE" ]; then
-      EXISTING_PORTS=$(cat "$BATCH_FILE" | jq -r '.[].port' 2>/dev/null)
-      if echo "$EXISTING_PORTS" | grep -q "^$TEST_PORT$"; then
-        TEST_PORT=$((TEST_PORT + 1))
-        continue
-      fi
-    fi
-    break
+  while lsof -i :$TEST_PORT >/dev/null 2>&1; do
+    TEST_PORT=$((TEST_PORT + 1))
   done
 
-  BATCH_ENTRY="{\"name\": \"$PROJECT_NAME\", \"path\": \"$FULL_PATH\", \"port\": $TEST_PORT}"
-  
+  # Batch mode: all animations go into ONE project
   if [ -f "$BATCH_FILE" ]; then
-    # Append to existing batch
-    EXISTING=$(cat "$BATCH_FILE")
-    echo "$(echo "$EXISTING" | jq ". + [$BATCH_ENTRY]")" > "$BATCH_FILE"
-  else
-    # Create new batch file
-    echo "[$BATCH_ENTRY]" > "$BATCH_FILE"
+    # Project already exists, just add animation to it
+    BATCH_DATA=$(cat "$BATCH_FILE")
+    PROJECT_PATH=$(echo "$BATCH_DATA" | jq -r '.projectPath')
+    PORT=$(echo "$BATCH_DATA" | jq -r '.port')
+    ANIMATION_COUNT=$(echo "$BATCH_DATA" | jq -r '.animations | length')
+    NEW_ANIMATION_NAME="Animation$(printf '%02d' $((ANIMATION_COUNT + 1)))"
+
+    # Create animation file
+    cat > "$PROJECT_PATH/src/${NEW_ANIMATION_NAME}.tsx" << 'ANIMEOF'
+import React from 'react';
+import { useCurrentFrame, interpolate, spring, AbsoluteFill } from 'remotion';
+
+const ThemeAnimation: React.FC = () => {
+  const frame = useCurrentFrame();
+  const fps = 30;
+
+  const scale = spring({ fps, frame, config: { damping: 12, stiffness: 100 } });
+  const opacity = interpolate(frame, [0, 30, 120, 150], [0, 1, 1, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: '#0a0a1a', justifyContent: 'center', alignItems: 'center' }}>
+      <div style={{ transform: `scale(${scale})`, opacity }}>
+        <div style={{
+          fontSize: 100,
+          fontFamily: 'Arial Black, sans-serif',
+          fontWeight: 'bold',
+          color: '#fff',
+          textShadow: '0 0 30px rgba(255, 0, 255, 0.8), 0 0 60px rgba(0, 255, 255, 0.6)',
+        }}>
+          EMOWOWO
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+export default ThemeAnimation;
+ANIMEOF
+
+    # Update batch file with new animation
+    echo "$BATCH_DATA" | jq ".animations += [\"$NEW_ANIMATION_NAME\"]" > "$BATCH_FILE"
+
+    echo -e "${GREEN}✅ Animation added to batch project${NC}"
+    echo ""
+    echo -e "${BLUE}   Animation: $NEW_ANIMATION_NAME"
+    echo "   Project: $(basename "$PROJECT_PATH")"
+    echo "   Total animations: $((ANIMATION_COUNT + 1))${NC}"
+    echo ""
+    exit 0
   fi
-  
-  echo -e "${GREEN}✅ Project added to batch (run with --launch when all projects are ready)${NC}"
+
+  # First batch call: create project with first animation
+  mkdir -p "$FULL_PATH"/{src,public}
+
+  # Create package.json
+  cat > "$FULL_PATH/package.json" << 'PKGEOF'
+{
+  "name": "remotion-batch",
+  "version": "1.0.0",
+  "description": "Created with RemotionMAX-Mac Batch",
+  "scripts": {
+    "start": "remotion preview",
+    "build": "remotion render out.mp4",
+    "preview": "remotion preview"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "@remotion/bundler": "^4.0.0",
+    "remotion": "^4.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}
+PKGEOF
+
+  # Create tsconfig.json
+  cat > "$FULL_PATH/tsconfig.json" << 'TSEOF'
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"]
+}
+TSEOF
+
+  # Create first animation file
+  cat > "$FULL_PATH/src/Animation01.tsx" << 'ANIMEOF'
+import React from 'react';
+import { useCurrentFrame, interpolate, spring, AbsoluteFill } from 'remotion';
+
+const ThemeAnimation: React.FC = () => {
+  const frame = useCurrentFrame();
+  const fps = 30;
+
+  const scale = spring({ fps, frame, config: { damping: 12, stiffness: 100 } });
+  const opacity = interpolate(frame, [0, 30, 120, 150], [0, 1, 1, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: '#0a0a1a', justifyContent: 'center', alignItems: 'center' }}>
+      <div style={{ transform: `scale(${scale})`, opacity }}>
+        <div style={{
+          fontSize: 100,
+          fontFamily: 'Arial Black, sans-serif',
+          fontWeight: 'bold',
+          color: '#fff',
+          textShadow: '0 0 30px rgba(255, 0, 255, 0.8), 0 0 60px rgba(0, 255, 255, 0.6)',
+        }}>
+          EMOWOWO
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+export default ThemeAnimation;
+ANIMEOF
+
+  # Create index.tsx that registers all animations
+  cat > "$FULL_PATH/src/index.tsx" << 'INDEXEOF'
+import { Composition, registerRoot } from 'remotion';
+import React from 'react';
+import Animation01 from './Animation01';
+
+const compositions = [
+  { id: 'Animation01', component: Animation01, duration: 150 },
+];
+
+const Root: React.FC = () => {
+  return (
+    <>
+      {compositions.map((comp) => (
+        <Composition
+          key={comp.id}
+          id={comp.id}
+          component={comp.component}
+          durationInFrames={comp.duration}
+          fps={30}
+          width={1920}
+          height={1080}
+        />
+      ))}
+    </>
+  );
+};
+
+registerRoot(Root);
+INDEXEOF
+
+  touch "$FULL_PATH/public/.gitkeep"
+
+  # Install dependencies
+  echo -e "${GREEN}📦 Installing dependencies...${NC}"
+  cd "$FULL_PATH"
+  npm install 2>/dev/null || npm install
+
+  # Save batch file with project info
+  echo "{\"projectPath\": \"$FULL_PATH\", \"port\": $TEST_PORT, \"animations\": [\"Animation01\"]}" > "$BATCH_FILE"
+
+  echo -e "${GREEN}✅ Batch project created (run --batch again to add more animations)${NC}"
   echo ""
   echo -e "${BLUE}   Project: $PROJECT_NAME"
   echo "   Path: $FULL_PATH"
-  echo "   Port: $TEST_PORT${NC}"
+  echo "   Port: $TEST_PORT"
+  echo "   Animations: 1${NC}"
   echo ""
-  
   exit 0
 fi
 
