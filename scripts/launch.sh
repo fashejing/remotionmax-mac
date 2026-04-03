@@ -18,6 +18,7 @@ MAX_RETRIES=5
 BATCH_MODE=false
 LAUNCH_MODE=false
 DEFER_OPEN=false
+FORCE_CLEAN=false
 BATCH_FILE="$HOME/.remotionmax-batch.json"
 
 # Colors
@@ -71,6 +72,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --defer-open)
       DEFER_OPEN=true
+      shift
+      ;;
+    --force)
+      FORCE_CLEAN=true
       shift
       ;;
     *)
@@ -138,11 +143,21 @@ if [ "$LAUNCH_MODE" = true ]; then
   # Start preview servers for all projects
   echo -e "${GREEN}🚀 Starting preview servers...${NC}"
   PREVIEW_PIDS=""
-  
+
+  # Kill any existing remotion preview processes first
+  echo -e "${YELLOW}🔪 Cleaning up existing preview servers...${NC}"
+  pkill -f "remotion preview" 2>/dev/null || true
+  sleep 2
+
   for i in $(seq 0 $((PROJECT_COUNT - 1))); do
     PROJECT_PATH=$(echo "$BATCH_DATA" | jq -r ".[$i].path")
     PORT=$(echo "$BATCH_DATA" | jq -r ".[$i].port")
-    
+
+    # Force kill any process on this port
+    echo -e "${YELLOW}   Port $PORT: killing existing process...${NC}"
+    kill_port $PORT
+    sleep 1
+
     cd "$PROJECT_PATH"
     nohup npx remotion preview --port $PORT > /tmp/remotionmax-$PORT.log 2>&1 &
     PREVIEW_PIDS="$PREVIEW_PIDS $!"
@@ -400,12 +415,25 @@ npm install 2>/dev/null || npm install
 
 # Add to batch file if in batch mode
 if [ "$BATCH_MODE" = true ]; then
-  # Find available port
+  # Find available port (checking both system ports and existing batch entries)
   TEST_PORT=$PORT
-  while lsof -i :$TEST_PORT >/dev/null 2>&1; do
-    TEST_PORT=$((TEST_PORT + 1))
+  while true; do
+    # Check if port is in use by system
+    if lsof -i :$TEST_PORT >/dev/null 2>&1; then
+      TEST_PORT=$((TEST_PORT + 1))
+      continue
+    fi
+    # Check if port is already assigned in batch file
+    if [ -f "$BATCH_FILE" ]; then
+      EXISTING_PORTS=$(cat "$BATCH_FILE" | jq -r '.[].port' 2>/dev/null)
+      if echo "$EXISTING_PORTS" | grep -q "^$TEST_PORT$"; then
+        TEST_PORT=$((TEST_PORT + 1))
+        continue
+      fi
+    fi
+    break
   done
-  
+
   BATCH_ENTRY="{\"name\": \"$PROJECT_NAME\", \"path\": \"$FULL_PATH\", \"port\": $TEST_PORT}"
   
   if [ -f "$BATCH_FILE" ]; then
@@ -521,6 +549,13 @@ FIXROOT
 
 # Start preview with retry logic
 echo -e "${GREEN}🚀 Starting preview server...${NC}"
+
+# Force clean all existing remotion processes if --force flag is set
+if [ "$FORCE_CLEAN" = true ]; then
+  echo -e "${YELLOW}🔪 Force cleaning all existing preview servers...${NC}"
+  pkill -f "remotion preview" 2>/dev/null || true
+  sleep 2
+fi
 
 CURRENT_PORT=$PORT
 RETRY_COUNT=0

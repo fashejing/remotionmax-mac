@@ -60,6 +60,7 @@ bash ~/.agents/skills/remotionmax-mac/scripts/launch.sh --launch
 | `--port` | Preview port (default: 3456) |
 | `--batch` | Add to batch queue, don't open yet |
 | `--launch` | Launch all batched projects |
+| `--force` | Kill all existing preview servers before starting |
 | `--auto` | Skip all prompts, use defaults |
 
 ## Animation Themes
